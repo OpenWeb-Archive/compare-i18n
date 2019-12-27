@@ -1,0 +1,28 @@
+{
+  "name": "compare-i18n",
+  "version": "0.0.7",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc --esModuleInterop index.ts",
+    "deploy": "npm run build && npm publish",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "compare-i18n": "./index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@babel/core": "^7.7.7",
+    "@phenomnomnominal/tsquery": "^4.0.0",
+    "@types/node": "^13.1.1",
+    "chalk": "^3.0.0",
+    "find": "^0.3.0",
+    "fs-extra": "^8.1.0",
+    "lodash": "^4.17.15",
+    "ts-node": "^8.5.4",
+    "typescript": "^3.7.4",
+    "yargs": "^15.0.2"
+  }
+}
