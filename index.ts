@@ -9,6 +9,7 @@ import yargs from 'yargs';
 import chalk from 'chalk';
 import ts from 'typescript';
 const path = require('path');
+const normalizeWhitespace = require('normalize-html-whitespace');
 
 function extractTextContentFromElementDeclaration(
   element: ts.Node,
@@ -21,53 +22,41 @@ function extractTextContentFromElementDeclaration(
   const index = indexRef.current;
 
   const content = element
+    .getChildAt(1)
     .getChildren()
-    .slice(4)
     .map(child => {
-      if (child.kind === 192) {
-        // Object
+      if (child.kind === 11) {
+        // JsxText
         indexRef!.current++;
-        return `{{${child
-          .getChildren()[1]
-          .getChildren()[0]
-          .getChildren()[0]
-          .getText()}}}`;
-      } else if (child.kind === 10) {
-        // String
+        return normalizeWhitespace(child.getFullText());
+      } else if (child.kind === 274) {
+        // JsxExpression
         indexRef!.current++;
-        return child.getText().slice(1, -1);
-      } else if (child.kind === 195) {
-        // CallExpression
-        return extractTextContentFromElementDeclaration(
-          child.getChildAt(2),
-          indexRef,
-          true
-        );
-      } else if (child.kind === 27) {
-        // Comma
-        return '';
+        return normalizeWhitespace(child.getFullText());
+      } else if (child.kind === 264) {
+        // JsxElement
+        return extractTextContentFromElementDeclaration(child, indexRef, true);
       }
-      console.error('Unexpected Node ', child.kind, child.getText());
+      console.error('Unexpected Node ', child.kind, child.getFullText());
       return '';
     })
     .join('');
 
   if (isNotTrans) {
-    return `<${index}>${content}</${index}>`;
+    return `<${index}>${content.trim()}</${index}>`;
   } else {
-    return content;
+    return content.trim();
   }
 }
 
-function extractI18nFromFile(path: string, babelConfig: any) {
-  const code = babel.transform((fs.readFileSync(path) as unknown) as string, {
-    ...babelConfig,
-    filename: path,
-  })!.code!;
-
+function extractI18nFromFile(path: string) {
   const keys = {};
 
-  const ast = tsquery.ast(code);
+  const ast = tsquery.ast(
+    String(fs.readFileSync(path)),
+    path,
+    ts.ScriptKind.TSX
+  );
 
   const tCalls = tsquery.query(ast, 'CallExpression > Identifier[name="t"]');
 
@@ -94,28 +83,30 @@ function extractI18nFromFile(path: string, babelConfig: any) {
       addKey(i18nKey, defaultValue, true);
     } else {
       const i18nKey = tArgs.getText();
-      addKey(i18nKey, undefined, true);
+      addKey(i18nKey, i18nKey, true);
     }
   });
 
   const transInstances = tsquery
     .query(
       ast,
-      'CallExpression > PropertyAccessExpression > Identifier[name="Trans"]'
+      'JsxElement > JsxOpeningElement > Identifier[escapedText="Trans"]'
     )
-    .filter(
-      transInstance => transInstance.parent.getText() === '_reactI18next.Trans'
-    );
+    .map(node => node.parent.parent);
 
   transInstances.forEach(transInstance => {
-    const i18nKeyAssignment = tsquery.query(
-      transInstance.parent.parent,
-      'ObjectLiteralExpression > PropertyAssignment > Identifier[name="i18nKey"]'
-    );
-    const i18nKey = i18nKeyAssignment[0].parent.getChildAt(2).getText();
+    const i18nKeyPropNode = tsquery.query(
+      transInstance,
+      'JsxAttribute Identifier[escapedText="i18nKey"]'
+    )[0]?.parent;
+
     const defaultValue = extractTextContentFromElementDeclaration(
-      transInstance.parent.parent.getChildAt(2)
+      transInstance
     );
+
+    const i18nKey = i18nKeyPropNode
+      ? tsquery(i18nKeyPropNode, 'StringLiteral')[0].getText()
+      : `"${defaultValue}"`;
 
     addKey(i18nKey, defaultValue, false);
   });
@@ -133,13 +124,6 @@ function main() {
     return;
   }
 
-  if (!argv.babelConfigPath) {
-    console.error(
-      'Provide a babel config file using the --babel-config-path flag'
-    );
-    return;
-  }
-
   if (!argv.sourcePath) {
     console.error('Provide a source path --source-path flag');
     return;
@@ -149,16 +133,12 @@ function main() {
     process.cwd(),
     argv.translationPath as string
   ));
-  const babelConfig = require(path.join(
-    process.cwd(),
-    argv.babelConfigPath as string
-  ));
   const sourcePath = path.join(process.cwd(), argv.sourcePath);
 
   const paths: string[] = find.fileSync(/\.(js|jsx|ts|tsx)$/, sourcePath);
 
   const allKeysFromCode = paths.reduce((prev, path) => {
-    const keys = extractI18nFromFile(path, babelConfig);
+    const keys = extractI18nFromFile(path);
 
     return { ...prev, ...keys };
   }, {});

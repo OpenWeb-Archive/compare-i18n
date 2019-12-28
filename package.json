@@ -1,6 +1,6 @@
 {
   "name": "compare-i18n",
-  "version": "0.0.7",
+  "version": "0.0.14",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -21,6 +21,7 @@
     "find": "^0.3.0",
     "fs-extra": "^8.1.0",
     "lodash": "^4.17.15",
+    "normalize-html-whitespace": "^1.0.0",
     "ts-node": "^8.5.4",
     "typescript": "^3.7.4",
     "yargs": "^15.0.2"

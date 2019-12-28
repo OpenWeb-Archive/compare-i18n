@@ -22,53 +22,46 @@ var find_1 = __importDefault(require("find"));
 var lodash_1 = __importDefault(require("lodash"));
 var yargs_1 = __importDefault(require("yargs"));
 var chalk_1 = __importDefault(require("chalk"));
+var typescript_1 = __importDefault(require("typescript"));
 var path = require('path');
+var normalizeWhitespace = require('normalize-html-whitespace');
 function extractTextContentFromElementDeclaration(element, indexRef, isNotTrans) {
     if (!indexRef) {
         indexRef = { current: 0 };
     }
     var index = indexRef.current;
     var content = element
+        .getChildAt(1)
         .getChildren()
-        .slice(4)
         .map(function (child) {
-        if (child.kind === 192) {
-            // Object
+        if (child.kind === 11) {
+            // JsxText
             indexRef.current++;
-            return "{{" + child
-                .getChildren()[1]
-                .getChildren()[0]
-                .getChildren()[0]
-                .getText() + "}}";
+            return normalizeWhitespace(child.getFullText());
         }
-        else if (child.kind === 10) {
-            // String
+        else if (child.kind === 274) {
+            // JsxExpression
             indexRef.current++;
-            return child.getText().slice(1, -1);
+            return normalizeWhitespace(child.getFullText());
         }
-        else if (child.kind === 195) {
-            // CallExpression
-            return extractTextContentFromElementDeclaration(child.getChildAt(2), indexRef, true);
+        else if (child.kind === 264) {
+            // JsxElement
+            return extractTextContentFromElementDeclaration(child, indexRef, true);
         }
-        else if (child.kind === 27) {
-            // Comma
-            return '';
-        }
-        console.error('Unexpected Node ', child.kind, child.getText());
+        console.error('Unexpected Node ', child.kind, child.getFullText());
         return '';
     })
         .join('');
     if (isNotTrans) {
-        return "<" + index + ">" + content + "</" + index + ">";
+        return "<" + index + ">" + content.trim() + "</" + index + ">";
     }
     else {
-        return content;
+        return content.trim();
     }
 }
-function extractI18nFromFile(path, babelConfig) {
-    var code = babel.transform(fs_extra_1["default"].readFileSync(path), __assign(__assign({}, babelConfig), { filename: path })).code;
+function extractI18nFromFile(path) {
     var keys = {};
-    var ast = tsquery_1.tsquery.ast(code);
+    var ast = tsquery_1.tsquery.ast(String(fs_extra_1["default"].readFileSync(path)), path, typescript_1["default"].ScriptKind.TSX);
     var tCalls = tsquery_1.tsquery.query(ast, 'CallExpression > Identifier[name="t"]');
     function addKey(key, value, stripValueCommas) {
         key = key.slice(1, -1);
@@ -93,16 +86,19 @@ function extractI18nFromFile(path, babelConfig) {
         }
         else {
             var i18nKey = tArgs.getText();
-            addKey(i18nKey, undefined, true);
+            addKey(i18nKey, i18nKey, true);
         }
     });
     var transInstances = tsquery_1.tsquery
-        .query(ast, 'CallExpression > PropertyAccessExpression > Identifier[name="Trans"]')
-        .filter(function (transInstance) { return transInstance.parent.getText() === '_reactI18next.Trans'; });
+        .query(ast, 'JsxElement > JsxOpeningElement > Identifier[escapedText="Trans"]')
+        .map(function (node) { return node.parent.parent; });
     transInstances.forEach(function (transInstance) {
-        var i18nKeyAssignment = tsquery_1.tsquery.query(transInstance.parent.parent, 'ObjectLiteralExpression > PropertyAssignment > Identifier[name="i18nKey"]');
-        var i18nKey = i18nKeyAssignment[0].parent.getChildAt(2).getText();
-        var defaultValue = extractTextContentFromElementDeclaration(transInstance.parent.parent.getChildAt(2));
+        var _a;
+        var i18nKeyPropNode = (_a = tsquery_1.tsquery.query(transInstance, 'JsxAttribute Identifier[escapedText="i18nKey"]')[0]) === null || _a === void 0 ? void 0 : _a.parent;
+        var defaultValue = extractTextContentFromElementDeclaration(transInstance);
+        var i18nKey = i18nKeyPropNode
+            ? tsquery_1.tsquery(i18nKeyPropNode, 'StringLiteral')[0].getText()
+            : "\"" + defaultValue + "\"";
         addKey(i18nKey, defaultValue, false);
     });
     return keys;
@@ -113,20 +109,15 @@ function main() {
         console.error('Provide a translation file using the --translation-path flag');
         return;
     }
-    if (!argv.babelConfigPath) {
-        console.error('Provide a babel config file using the --babel-config-path flag');
-        return;
-    }
     if (!argv.sourcePath) {
         console.error('Provide a source path --source-path flag');
         return;
     }
     var translationFile = require(path.join(process.cwd(), argv.translationPath));
-    var babelConfig = require(path.join(process.cwd(), argv.babelConfigPath));
     var sourcePath = path.join(process.cwd(), argv.sourcePath);
     var paths = find_1["default"].fileSync(/\.(js|jsx|ts|tsx)$/, sourcePath);
     var allKeysFromCode = paths.reduce(function (prev, path) {
-        var keys = extractI18nFromFile(path, babelConfig);
+        var keys = extractI18nFromFile(path);
         return __assign(__assign({}, prev), keys);
     }, {});
     if (argv.verbose) {
