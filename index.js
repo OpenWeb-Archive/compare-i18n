@@ -25,6 +25,20 @@ var chalk_1 = __importDefault(require("chalk"));
 var typescript_1 = __importDefault(require("typescript"));
 var path = require('path');
 var normalizeWhitespace = require('normalize-html-whitespace');
+function log() {
+    var args = [];
+    for (var _i = 0; _i < arguments.length; _i++) {
+        args[_i] = arguments[_i];
+    }
+    console.log.apply(console, args);
+}
+function logError() {
+    var args = [];
+    for (var _i = 0; _i < arguments.length; _i++) {
+        args[_i] = arguments[_i];
+    }
+    console.error.apply(console, args);
+}
 function extractTextContentFromElementDeclaration(element, indexRef, isNotTrans) {
     if (!indexRef) {
         indexRef = { current: 0 };
@@ -48,7 +62,7 @@ function extractTextContentFromElementDeclaration(element, indexRef, isNotTrans)
             // JsxElement
             return extractTextContentFromElementDeclaration(child, indexRef, true);
         }
-        console.error('Unexpected Node ', child.kind, child.getFullText());
+        logError('Unexpected Node ', child.kind, child.getFullText());
         return '';
     })
         .join('');
@@ -69,7 +83,7 @@ function extractI18nFromFile(path) {
             value = value && value.slice(1, -1);
         }
         if (keys[key] && keys[key] !== value) {
-            console.error("Found mismatching values for key=" + key);
+            logError("Found mismatching values for key=" + key);
         }
         keys[key] = value;
     }
@@ -106,11 +120,11 @@ function extractI18nFromFile(path) {
 function main() {
     var argv = yargs_1["default"].argv;
     if (!argv.translationPath) {
-        console.error('Provide a translation file using the --translation-path flag');
+        logError('Provide a translation file using the --translation-path flag');
         return;
     }
     if (!argv.sourcePath) {
-        console.error('Provide a source path --source-path flag');
+        logError('Provide a source path --source-path flag');
         return;
     }
     var translationFile = require(path.join(process.cwd(), argv.translationPath));
@@ -121,7 +135,7 @@ function main() {
         return __assign(__assign({}, prev), keys);
     }, {});
     if (argv.verbose) {
-        console.log(allKeysFromCode);
+        log(allKeysFromCode);
     }
     var mismatches = [];
     Object.keys(allKeysFromCode).forEach(function (key) {
@@ -131,22 +145,23 @@ function main() {
             mismatches.push(key);
         }
     });
-    console.log(chalk_1["default"].bold("compare-i18n"));
-    function logValue(value, colorFunc) {
+    log(chalk_1["default"].bold("compare-i18n"));
+    function logValue(value, colorFunc, source) {
         if (value === undefined) {
-            console.log('  ' + chalk_1["default"].grey('undefined'));
+            log("  " + source + ": " + chalk_1["default"].grey('undefined'));
         }
         else {
-            console.log('  ' + colorFunc(value));
+            log("  " + source + ": " + colorFunc(value));
         }
     }
     if (mismatches.length) {
-        console.log("Found " + chalk_1["default"].magenta(mismatches.length) + " new/modified keys:\n");
+        log("Found " + chalk_1["default"].magenta(mismatches.length) + " new/modified keys:\n");
         mismatches.forEach(function (key) {
-            console.log(key);
+            log(key);
             var translationValue = lodash_1["default"].get(translationFile, key);
-            logValue(translationValue, chalk_1["default"].red);
-            logValue(allKeysFromCode[key], chalk_1["default"].green);
+            logValue(translationValue, chalk_1["default"].red, 'in-json');
+            logValue(allKeysFromCode[key], chalk_1["default"].green, 'in-code');
+            log('');
         });
     }
     else {

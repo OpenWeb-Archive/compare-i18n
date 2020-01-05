@@ -1,6 +1,6 @@
 {
   "name": "compare-i18n",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -11,7 +11,7 @@
   "bin": {
     "compare-i18n": "./index.js"
   },
-  "author": "",
+  "author": "dutzi",
   "license": "ISC",
   "dependencies": {
     "@babel/core": "^7.7.7",

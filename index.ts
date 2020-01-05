@@ -11,6 +11,14 @@ import ts from 'typescript';
 const path = require('path');
 const normalizeWhitespace = require('normalize-html-whitespace');
 
+function log(...args) {
+  console.log(...args);
+}
+
+function logError(...args) {
+  console.error(...args);
+}
+
 function extractTextContentFromElementDeclaration(
   element: ts.Node,
   indexRef?: { current: number },
@@ -37,7 +45,7 @@ function extractTextContentFromElementDeclaration(
         // JsxElement
         return extractTextContentFromElementDeclaration(child, indexRef, true);
       }
-      console.error('Unexpected Node ', child.kind, child.getFullText());
+      logError('Unexpected Node ', child.kind, child.getFullText());
       return '';
     })
     .join('');
@@ -66,7 +74,7 @@ function extractI18nFromFile(path: string) {
       value = value && value.slice(1, -1);
     }
     if (keys[key] && keys[key] !== value) {
-      console.error(`Found mismatching values for key=${key}`);
+      logError(`Found mismatching values for key=${key}`);
     }
     keys[key] = value;
   }
@@ -118,14 +126,12 @@ function main() {
   const argv = yargs.argv;
 
   if (!argv.translationPath) {
-    console.error(
-      'Provide a translation file using the --translation-path flag'
-    );
+    logError('Provide a translation file using the --translation-path flag');
     return;
   }
 
   if (!argv.sourcePath) {
-    console.error('Provide a source path --source-path flag');
+    logError('Provide a source path --source-path flag');
     return;
   }
 
@@ -144,7 +150,7 @@ function main() {
   }, {});
 
   if (argv.verbose) {
-    console.log(allKeysFromCode);
+    log(allKeysFromCode);
   }
 
   const mismatches: string[] = [];
@@ -159,32 +165,31 @@ function main() {
     }
   });
 
-  console.log(chalk.bold(`compare-i18n`));
+  log(chalk.bold(`compare-i18n`));
 
-  function logValue(value: string, colorFunc: chalk.Chalk) {
+  function logValue(value: string, colorFunc: chalk.Chalk, source: string) {
     if (value === undefined) {
-      console.log('  ' + chalk.grey('undefined'));
+      log(`  ${source}: ${chalk.grey('undefined')}`);
     } else {
-      console.log('  ' + colorFunc(value));
+      log(`  ${source}: ${colorFunc(value)}`);
     }
   }
 
   if (mismatches.length) {
-    console.log(
-      `Found ${chalk.magenta(mismatches.length)} new/modified keys:\n`
-    );
+    log(`Found ${chalk.magenta(mismatches.length)} new/modified keys:\n`);
 
     mismatches.forEach(key => {
-      console.log(key);
+      log(key);
       const translationValue = _.get(translationFile, key);
-      logValue(translationValue, chalk.red);
-      logValue(allKeysFromCode[key], chalk.green);
+      logValue(translationValue, chalk.red, 'json');
+      logValue(allKeysFromCode[key], chalk.green, 'code');
+      log('');
     });
   } else {
-    console.log('No keys added/modified');
+    log('No keys added/modified');
   }
 
-  console.log('');
+  log('');
 }
 
 main();
